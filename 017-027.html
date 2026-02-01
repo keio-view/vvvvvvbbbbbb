@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title> Ver.1.9s</title>
+    <style>
+        :root { --bg: #0f0f0f; --accent: #58a6ff; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; overflow: hidden; }
+        
+        header {
+            height: 50px; padding: 0 15px; background: rgba(0,0,0,0.9);
+            display: flex; align-items: center; border-bottom: 1px solid #333;
+            position: fixed; top: 0; width: 100%; z-index: 1000;
+        }
+
+        .map-wrapper {
+            position: absolute; top: 50px; bottom: 0; left: 0; right: 0;
+            overflow: auto; background: #000;
+        }
+
+        .map-content { position: relative; width: 1200px; height: 594px; }
+        .map-img { position: absolute; top: 0; left: 0; width: 1200px; height: 594px; display: block; pointer-events: none; }
+
+        /* 列車コンテナ（アニメーション削除） */
+        .train {
+            position: absolute; width: 14px; height: 14px;
+            z-index: 100;
+            transform: translate(-50%, -50%);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* 三角形本体（縦12px : 横10px） */
+        .train-shape {
+            width: 10px; height: 12px;
+            filter: drop-shadow(0 0 0.6px #fff);
+            transition: background-color 0.3s;
+        }
+
+        /* 向きの定義 (ki: 0=上り/左向き, 1=下り/右向き) */
+        .dir-0 .train-shape { clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+        .dir-1 .train-shape { clip-path: polygon(0 0, 100% 50%, 0 100%); }
+
+        /* 列車ラベル基本設定 */
+        .train-label {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.65);
+            color: #fff;
+            padding: 2px 5px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 400;
+            line-height: 1.1;
+            white-space: nowrap;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 110;
+        }
+
+        /* 下り(dir-1)は上に表示 */
+        .dir-1 .train-label {
+            bottom: 15px;
+            top: auto;
+        }
+
+        /* 上り(dir-0)は下に表示 */
+        .dir-0 .train-label {
+            top: 15px;
+            bottom: auto;
+        }
+
+        .label-row { display: flex; gap: 4px; }
+        .delay-text { color: #ff4444; font-weight: 470; }
+        .car-model { color: #00ffcc; font-size: 6.5px; }
+
+        /* 種別カラー */
+        .train-shape.sy-1 { background-color: #f4233c; }
+        .train-shape.sy-2 { background-color: #1cb648; }
+        .train-shape.sy-3 { background-color: #0082ff; }
+        .train-shape.sy-5 { background-color: #d6e500; color: #000; }
+        .train-shape.sy-6 { background-color: #888; }
+        .train-shape.sy-9, .train-shape.sy-11 { background-color: #f00095; }
+
+        /* マップ遷移ボタンのスタイル */
+.map-nav-btn {
+    position: absolute;
+    width: 56px;
+    height: 31px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7); /* 背景は少し暗く */
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 4px;
+    z-index: 500; /* 列車よりは下、マップよりは上 */
+    box-sizing: border-box;
+    transition: background 0.2s, color 0.2s;
+}
+
+.map-nav-btn:hover {
+    background: var(--accent);
+    color: #000;
+}
+
+    </style>
+</head>
+<body>
+
+<header>
+    <a href="index.html" style="color:var(--accent); text-decoration:none; margin-right:15px; font-size:13px;">← 一覧に戻る</a>
+    <h1 style="font-size:13px; margin:0; font-weight:300;">v1.9</h1>
+    <div id="status" style="margin-left:auto; font-size:10px; color:#aaa;">接続中...</div>
+</header>
+
+<div class="map-wrapper">
+    <div class="map-content" id="mapContent">
+        <img src="sagamihara_new.png" class="map-img">
+        <div id="trainLayer"></div>
+        <a href="map_beta.html" class="map-nav-btn" style="left: 16px; top: 128px;">新宿方面</a>
+
+    </div>
+</div>
+
+<script>
+const FEED_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
+const UNYO_TXT_URL = "unyo/h/8R.txt";
+
+const posCoords = {
+    // 相模原線専用座標
+    "D044":   {x: 107, y: 175}, "S016":   {x: 107, y: 202},
+    "E044_1": {x: 193, y: 175}, "E044_2": {x: 193, y: 202},
+    "D045":   {x: 265, y: 175}, "U044":   {x: 265, y: 202},
+    "E045_1": {x: 336, y: 175}, "E045_2": {x: 336, y: 202},
+    "D046":   {x: 404, y: 175}, "U045":   {x: 404, y: 202},
+    "E046_1": {x: 475, y: 175}, "E046_2": {x: 475, y: 202},
+    "D047":   {x: 549, y: 175}, "U046":   {x: 549, y: 202},
+    "E047_1": {x: 625, y: 175}, "E047_2": {x: 625, y: 202},
+    "D048":   {x: 691, y: 175}, "U047":   {x: 691, y: 202},
+    "E048_1": {x: 780, y: 147}, "E048_2": {x: 780, y: 175}, "E048_3": {x: 780, y: 202}, "E048_4": {x: 780, y: 230},
+    "D049":   {x: 910, y: 175}, "U048":   {x: 910, y: 202},
+    "E049_1": {x: 1023, y: 175}, "E049_2": {x: 1023, y: 202},
+    "D050":   {x: 1105, y: 175}, "U049":  {x: 1105, y: 202},
+    "E050_1": {x: 150, y: 358}, "E050_2": {x: 150, y: 386}, "E050_3": {x: 150, y: 413}, "E050_4": {x: 150, y: 441},
+    "D051":   {x: 278, y: 386}, "U050":   {x: 278, y: 413},
+    "E051_1": {x: 386, y: 386}, "E051_2": {x: 386, y: 413},
+    "D052":   {x: 469, y: 386}, "U051":   {x: 469, y: 413},
+    "E052_1": {x: 545, y: 386}, "E052_2": {x: 545, y: 413},
+    "D053":   {x: 623, y: 386}, "U052":   {x: 623, y: 413},
+    "E053_1": {x: 701, y: 386}, "E053_2": {x: 701, y: 413},
+    "D054":   {x: 795, y: 386}, "U053":   {x: 795, y: 413},
+    "E054_1": {x: 891, y: 386}, "E054_2": {x: 891, y: 413}
+};
+
+
+let unyoMap = {};
+
+async function fetchUnyoData() {
+    try {
+        const res = await fetch(UNYO_TXT_URL + "?" + Date.now());
+        const text = await res.text();
+        const lines = text.split(/\r?\n/);
+        let currentTrains = [];
+        const newMap = {};
+        lines.forEach(line => {
+            const l = line.trim();
+            if (!l) return;
+            if (l.includes('［') || l.includes('[')) {
+                currentTrains = l.replace(/[［］\[\]]/g, '').split(',').map(t => t.trim().replace('T', ''));
+            } else if (l.startsWith('=')) {
+                const u = l.substring(1).trim();
+                currentTrains.forEach(tr => { if(tr) newMap[tr] = u; });
+                currentTrains = [];
+            }
+        });
+        unyoMap = newMap;
+    } catch (e) { console.error(e); }
+}
+
+function getCarModel(sk) {
+    const models = { "2":"2000", "5":"5000", "7":"7000", "8":"8000", "9":"9000", "0":"10-300" };
+    return models[String(sk)] || "";
+}
+
+function getDestName(ik) {
+    const destMap = {
+        "001":"新", "033":"N", "002":"笹", "003":"明", "006":"桜", "010":"烏", "012":"つ", "016":"調",
+        "018":"飛", "021":"東", "022":"府", "027":"高", "031":"北", "032":"八", "036":"馬", "037":"動",
+        "042":"尾", "043":"山", "048":"若", "050":"セ", "052":"沢", "054":"橋", "101":"市", "107":"岩",
+        "112":"住", "114":"島", "118":"瑞", "120":"本", "000":"当止"
+    };
+    return destMap[String(ik)] || ik;
+}
+
+async function update() {
+    await fetchUnyoData();
+    try {
+        const res = await fetch(FEED_URL + "?" + Date.now());
+        const json = await res.json();
+        const layer = document.getElementById('trainLayer');
+        const activeIds = new Set();
+        const allTrains = [...(json.TS || []), ...(json.TB || [])];
+        const posCounter = {};
+
+        allTrains.forEach(st => {
+            (st.ps || []).forEach(p => {
+                if (!p.tr) return;
+                const key = p.bs ? `${st.id}_${p.bs}` : st.id;
+                const base = posCoords[key] || posCoords[st.id];
+
+                if (base) {
+                    activeIds.add(p.tr);
+                    const cKey = `${base.x}_${base.y}`;
+                    const offset = (posCounter[cKey] || 0) * 12;
+                    posCounter[cKey] = (posCounter[cKey] || 0) + 1;
+
+                    let el = document.getElementById(`tr-${p.tr}`);
+                    if (!el) {
+                        el = document.createElement('div');
+                        el.id = `tr-${p.tr}`;
+                        el.className = 'train';
+                        layer.appendChild(el);
+                    }
+                    
+                    let direction = String(p.ki);
+                    if (direction !== '0' && direction !== '1') direction = '1';
+
+                    el.className = `train dir-${direction}`;
+                    el.style.left = `${base.x + offset}px`;
+                    el.style.top = `${base.y}px`;
+
+                    const trRaw = String(p.tr).trim();
+                    const trNo = trRaw.replace(/^0+/, ''); 
+                    const unyo = unyoMap[trRaw] || unyoMap[trNo] || "--";
+                    const model = getCarModel(p.sk);
+                    const dest = getDestName(p.ik_tr);
+                    const sr = p.sr || "";
+                    const delayHtml = (p.dl && parseInt(p.dl) > 0) ? `<span class="delay-text">+${p.dl}</span>` : "";
+
+                    el.innerHTML = `
+                        <div class="train-shape sy-${p.sy || '6'}"></div>
+                        <div class="train-label">
+                            <div class="label-row">
+                                <span>${dest}</span>
+                                <span>${p.tr}</span>
+                                <span>${unyo}</span>
+                            </div>
+                            <div class="label-row">
+                                <span>${sr}</span>
+                                ${delayHtml}
+                            </div>
+                            <div class="label-row car-model">
+                                <span>${model}</span>
+                            </div>
+                        </div>`;
+                }
+            });
+        });
+
+        document.querySelectorAll('.train').forEach(el => {
+            if (!activeIds.has(el.id.replace('tr-', ''))) el.remove();
+        });
+        document.getElementById('status').textContent = "更新: " + new Date().toLocaleTimeString();
+    } catch (e) { console.error(e); }
+}
+
+setInterval(update, 20000);
+update();
+</script>
+</body>
+</html>
