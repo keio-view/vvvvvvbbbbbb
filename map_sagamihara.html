@@ -84,6 +84,32 @@
         .train-shape.sy-5 { background-color: #d6e500; color: #000; }
         .train-shape.sy-6 { background-color: #888; }
         .train-shape.sy-9, .train-shape.sy-11 { background-color: #f00095; }
+
+        /* マップ遷移ボタンのスタイル */
+.map-nav-btn {
+    position: absolute;
+    width: 56px;
+    height: 31px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7); /* 背景は少し暗く */
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 4px;
+    z-index: 500; /* 列車よりは下、マップよりは上 */
+    box-sizing: border-box;
+    transition: background 0.2s, color 0.2s;
+}
+
+.map-nav-btn:hover {
+    background: var(--accent);
+    color: #000;
+}
+
     </style>
 </head>
 <body>
@@ -98,6 +124,8 @@
     <div class="map-content" id="mapContent">
         <img src="sagamihara_new.png" class="map-img">
         <div id="trainLayer"></div>
+        <a href="map_beta.html" class="map-nav-btn" style="left: 16px; top: 128px;">新宿方面</a>
+
     </div>
 </div>
 
