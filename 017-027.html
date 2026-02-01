@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <title> Ver.1.9w</title>
+    <title>京王線 府中方面 リアルタイム配線図 Ver.1.9w</title>
     <style>
         :root { --bg: #0f0f0f; --accent: #58a6ff; }
         body { margin: 0; background: var(--bg); color: #fff; font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif; overflow: hidden; }
@@ -86,37 +86,36 @@
         .train-shape.sy-9, .train-shape.sy-11 { background-color: #f00095; }
 
         /* マップ遷移ボタンのスタイル */
-.map-nav-btn {
-    position: absolute;
-    width: 56px;
-    height: 31px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.7); /* 背景は少し暗く */
-    border: 1.5px solid var(--accent);
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 10px;
-    font-weight: bold;
-    border-radius: 4px;
-    z-index: 500; /* 列車よりは下、マップよりは上 */
-    box-sizing: border-box;
-    transition: background 0.2s, color 0.2s;
-}
+        .map-nav-btn {
+            position: absolute;
+            width: 56px;
+            height: 31px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1.5px solid var(--accent);
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 4px;
+            z-index: 500;
+            box-sizing: border-box;
+            transition: background 0.2s, color 0.2s;
+        }
 
-.map-nav-btn:hover {
-    background: var(--accent);
-    color: #000;
-}
-
+        .map-nav-btn:hover {
+            background: var(--accent);
+            color: #000;
+        }
     </style>
 </head>
 <body>
 
 <header>
     <a href="index.html" style="color:var(--accent); text-decoration:none; margin-right:15px; font-size:13px;">← 一覧に戻る</a>
-    <h1 style="font-size:13px; margin:0; font-weight:300;">v1.9</h1>
+    <h1 style="font-size:13px; margin:0; font-weight:300;">v1.9w</h1>
     <div id="status" style="margin-left:auto; font-size:10px; color:#aaa;">接続中...</div>
 </header>
 
@@ -125,13 +124,11 @@
         <img src="017-027.png" class="map-img">
         <div id="trainLayer"></div>
         <a href="map_beta.html" class="map-nav-btn" style="left: 16px; top: 128px;">新宿方面</a>
-
     </div>
 </div>
 
 <script>
 const FEED_URL = "https://i.opentidkeio.jp/data/traffic_info.json";
-const UNYO_TXT_URL = "unyo/h/8R.txt";
 
 const posCoords = {
     "D017":   {x: 107, y: 175}, "U016":   {x: 107, y: 202},
@@ -163,13 +160,29 @@ const posCoords = {
     "E037_1": {x: 524, y: 276}, "E037_2": {x: 524, y: 303}
 };
 
-
-
 let unyoMap = {};
+
+// 曜日・時間に基づいた運用データURLの取得関数
+function getUnyoUrl() {
+    const now = new Date();
+    const hours = now.getHours();
+
+    // 深夜2時までは前日の日付として判定する
+    if (hours < 2) {
+        now.setDate(now.getDate() - 1);
+    }
+
+    const day = now.getDay(); // 0:日, 6:土
+    const isHoliday = (day === 0 || day === 6);
+
+    // 休日は unyo/h/8R.txt、平日は unyo/h/wd.txt
+    return isHoliday ? "unyo/h/8R.txt" : "unyo/h/wd.txt";
+}
 
 async function fetchUnyoData() {
     try {
-        const res = await fetch(UNYO_TXT_URL + "?" + Date.now());
+        const targetUrl = getUnyoUrl();
+        const res = await fetch(targetUrl + "?" + Date.now());
         const text = await res.text();
         const lines = text.split(/\r?\n/);
         let currentTrains = [];
@@ -272,7 +285,10 @@ async function update() {
         document.querySelectorAll('.train').forEach(el => {
             if (!activeIds.has(el.id.replace('tr-', ''))) el.remove();
         });
-        document.getElementById('status').textContent = "更新: " + new Date().toLocaleTimeString();
+        
+        // ステータス表示に現在のファイル名を含める
+        const currentFile = getUnyoUrl().split('/').pop();
+        document.getElementById('status').textContent = `更新: ${new Date().toLocaleTimeString()} [${currentFile}]`;
     } catch (e) { console.error(e); }
 }
 
