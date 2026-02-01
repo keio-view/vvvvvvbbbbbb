@@ -189,7 +189,7 @@ function getUnyoUrl() {
     const isHoliday = (day === 0 || day === 6);
 
     // 休日は 8R.txt、平日は wd.txt
-    return isHoliday ? "unyo/h/8R.txt" : "unyo/wd.txt";
+    return isHoliday ? "unyo/h/8R.txt" : "unyo/h/wd.txt";
 }
 
 async function fetchUnyoData() {
